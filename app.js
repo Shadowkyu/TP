@@ -1,6 +1,9 @@
 const express = require('express');
 const app = express();
-const fs = require('fs')
+const fs = require('fs');
+const mongoDbClient = require('./mongo.connector')
+
+
 
 const bodyParser = require('body-parser');
 app.use(bodyParser.urlencoded({ extended: false }));
@@ -12,12 +15,18 @@ var logFile = fs.createWriteStream('./api.log', {flags: 'a'});
 app.use(morgan('combined', { stream: logFile }));
 
 
-    app.get( '/user', function(req,res){
-        var content = fs.readFileSync('user.json');
-        var obj = JSON.parse(content);
-        res.send(obj.user);
+mongoDbClient.init()
+    .then(db => {
+
+    app.get('/user', function(req, res){
+            var content = fs.readFileSync('user.json');
+            var obj = JSON.parse(content);
+            
+            db.collection("user").find().toArray(function (error, results) {
+            res.send(JSON.stringify(results));
+        })
         
-    });
+    })
 
     app.get( '/items', function(req,res){
         var content = fs.readFileSync('user.json');
@@ -41,15 +50,18 @@ app.use(morgan('combined', { stream: logFile }));
         var name = req.body.name;
         var password = req.body.password;
         var id = ObjUser.length +1;
+        var NewObj = {"name" : name, "password" : password, "id" : id};
 
         ObjUser.push(id=id, name=name, password=password);
-        res.send(obj);
         fs.writeFile('user.json',JSON.stringify(obj), (err) => {
             if (err) throw err;
             console.log('The file has been created!');
           });
-        
+
+        db.collection("user").insert(NewObj)
+        res.send(JSON.stringify(NewObj))
     });
+
 
     app.post('/additem', function(req,res) {
         var content = fs.readFileSync('user.json');
@@ -102,16 +114,15 @@ app.use(morgan('combined', { stream: logFile }));
             return element === req.body.id });
 
         ObjUser.splice(ObjUser.indexOf(element), {
-            id = req.body.id,
-            name = name,
-            password = password
+            id : req.body.id,
+            name : name,
+            password : password
         });
         
         fs.writeFile('user.json',JSON.stringify(obj), (err) => {
             if (err) throw err;
             console.log('The file has been updated!');
         })
-            
     });
 
     app.put('/updateitems', function(req,res) {
@@ -127,7 +138,7 @@ app.use(morgan('combined', { stream: logFile }));
         var id = ObjItems.length +1;
         
         ObjItems.splice(ObjItems.indexOf(element), {
-            id=req.body.id, label=label, image=image, description=description});
+            id : req.body.id, label : label, image : image, description : description});
         
         fs.writeFile('user.json',JSON.stringify(obj), (err) => {
             if (err) throw err;
@@ -150,10 +161,10 @@ app.use(morgan('combined', { stream: logFile }));
         var id = ObjList.length +1;
     
         ObjList.splice(ObjList.indexOf(element), {
-            id = req.body.id,
-            name = name,
-            user = user,
-            items = items
+            id : req.body.id,
+            name : name,
+            user : user,
+            items : items
         });
         
         fs.writeFile('user.json',JSON.stringify(obj), (err) => {
@@ -209,7 +220,12 @@ app.use(morgan('combined', { stream: logFile }));
             console.log('The file has been delelte!');
         })
     })
-     
     app.listen(3000, () => {
         console.log('App listening on port 3000')
-    })
+    }) 
+})
+.catch(err => {
+    console.log("error init")
+})
+
+     
